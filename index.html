@@ -181,7 +181,7 @@
       </a>
       <div class="flex items-center gap-2 px-4 py-2.5 bg-white text-brown-700 rounded-2xl shadow-sm border border-brown-200 font-bold">
         <i class="fa-regular fa-clock text-brand-500"></i>
-        <span>服務時間：週一至週五 08:00 - 17:00 週六 08:30 - 16:30</span>
+        <span>服務時間：週一至週五 09:00 - 16:00</span>
       </div>
     </div>
   </header>
@@ -212,8 +212,15 @@
       💡 63 Care Center
     </div>
 
-    <!-- Form Object -->
-    <form id="bookingForm" onsubmit="handleFormSubmit(event)">
+    <!-- 原生 FormSubmit 表單設定 -->
+    <form id="bookingForm" action="https://formsubmit.co/chen.xinyu0106@gmail.com" method="POST" onsubmit="handleFormSubmit(event)">
+
+      <!-- FormSubmit 自訂設定項目 -->
+      <input type="hidden" name="_captcha" value="false">
+      <input type="hidden" name="_subject" value="【六十三日照中心】參訪預約登記單 ☀️">
+      <input type="hidden" name="_template" value="table">
+      <input type="hidden" id="hidden_receipt_number" name="預約單號" value="">
+      <input type="text" name="_honey" class="hidden" style="display:none !important">
 
       <!-- Hidden Form Values -->
       <input type="hidden" id="hidden_gender" name="長輩性別" value="爺爺 👴">
@@ -238,7 +245,7 @@
           </p>
           <div class="mt-4 pt-3 border-t border-brown-200 flex flex-wrap gap-4 text-xs font-bold text-brown-700">
             <span>📍 臺北市私立六十三社區長照機構</span>
-            <span>⏰ 週一至週五 08:00 - 17:00 週六 08:30 - 16:30</span>
+            <span>⏰ 週一至週五 09:00 - 16:00</span>
           </div>
         </div>
       </section>
@@ -484,7 +491,7 @@
           <p class="text-xs text-rose-600 font-bold hidden" id="err-visitDate">請選擇有效的預約日期 💡</p>
         </div>
 
-        <!-- 4 個時段膠囊按鈕 (複選 1~4 個) - 已修復標籤結構與對齊排版 -->
+        <!-- 4 個時段膠囊按鈕 (複選 1~4 個) -->
         <div class="space-y-3 pt-2">
           <div class="flex items-center justify-between flex-wrap gap-2">
             <label class="block text-sm font-black text-brown-800">
@@ -579,7 +586,7 @@
           <div class="text-xs font-black text-brown-600 uppercase tracking-wider">臺北市私立六十三社區長照機構</div>
           <h2 class="text-2xl font-black text-brown-800 mt-1">參訪預約存根聯 ☀️</h2>
           <div class="inline-block mt-2 px-3 py-1 bg-white text-brown-800 rounded-full text-xs font-mono font-black border border-brown-300" id="receiptNumber">
-            NO-63-20261026-8888
+            NO-63-20261027-8888
           </div>
         </div>
 
@@ -651,7 +658,7 @@
   <!-- Application Logic JavaScript -->
   <script>
     // 專屬 Google Apps Script 雲端寫入網址
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyugSOrbBSo84JYYwdtE2hxR7t1WpgP_aSSNIedntlTkQXr_lznZc0DbGZ8RclSlXsRog/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/library/d/1jSnLbaI8Nn1zD5Tom8uIsfqtocB-_ngh3QWqoB5LQ80rhAbT_YIM8gXz/1";
 
     // State management
     let selectedGender = '爺爺 👴';
@@ -983,7 +990,10 @@
       const d = new Date();
       const dateStr = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
       const randomNum = Math.floor(1000 + Math.random() * 9000);
-      document.getElementById('receiptNumber').innerText = `NO-63-${dateStr}-${randomNum}`;
+      const resId = `NO-63-${dateStr}-${randomNum}`;
+      
+      document.getElementById('receiptNumber').innerText = resId;
+      document.getElementById('hidden_receipt_number').value = resId;
 
       // 帶入摘要憑證
       document.getElementById('sumDate').innerText = document.getElementById('visitDate').value;
@@ -1005,61 +1015,46 @@
       document.getElementById('receiptModal').classList.add('hidden');
     }
 
-    // 正式送出：同時發送 Email (FormSubmit) 並寫入 Google 試算表 (Apps Script)
+    // 正式送出：觸發原生 FormSubmit 跳頁傳送 (並同時在背景備份寫入 Google 雲端試算表)
     async function confirmAndSubmitForm() {
       const btn = document.getElementById('finalSubmitBtn');
       btn.disabled = true;
-      btn.innerHTML = '<span>✨ 正在傳送預約單...</span>';
+      btn.innerHTML = '<span>✨ 正在跳轉送出 FormSubmit...</span>';
 
-      const resId = document.getElementById('receiptNumber').innerText;
-      const formDataObj = {
-        reservation_id: resId,
-        elderly_name: document.getElementById('elderName').value.trim(),
-        elderly_gender: selectedGender,
-        elderly_age: document.getElementById('elderAge').value.trim(),
-        elderly_area: document.getElementById('elderArea').value.trim(),
-        elderly_hobbies: selectedHobbies.join(', ') || '無特別指定',
-        family_name: document.getElementById('familyName').value.trim(),
-        family_phone: document.getElementById('familyPhone').value.trim(),
-        relationship: selectedRelationship,
-        family_email: document.getElementById('familyEmail').value.trim(),
-        assessment_1966: selected1966,
-        assessment_level: selectedCareLevel,
-        case_manager_unit: document.getElementById('caseManager').value.trim() || '無',
-        visit_date: document.getElementById('visitDate').value,
-        visit_time: selectedTimeSlots.join('；')
-      };
-
-      try {
-        // 1. 發送 Email 通知 (FormSubmit) - chen.xinyu0106@gmail.com
-        const emailPromise = fetch("https://formsubmit.co/ajax/chen.xinyu0106@gmail.com", {
-          method: "POST",
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(formDataObj)
-        });
-
-        // 2. 發送至 Google 試算表 (Google Apps Script)
-        const sheetPromise = fetch(GOOGLE_SCRIPT_URL, {
-          method: "POST",
-          mode: "no-cors",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify(formDataObj)
-        });
-
-        await Promise.all([emailPromise, sheetPromise]);
-
-        showToast('🎉 預約單成功送出並同步存檔！');
-        btn.innerHTML = '<span>✅ 預約已成功送出 ☀️</span>';
-        btn.classList.remove('from-brown-600', 'to-brown-700');
-        btn.classList.add('bg-emerald-700');
-
-      } catch (err) {
-        showToast('預約已傳送！我們會儘速與您電話聯繫 ✨');
-        btn.innerHTML = '<span>✅ 預約完成 ☀️</span>';
+      // 1. 同步備份寫入 Google Apps Script 雲端 Excel
+      if (GOOGLE_SCRIPT_URL) {
+        try {
+          const resId = document.getElementById('receiptNumber').innerText;
+          const formDataObj = {
+            reservation_id: resId,
+            elderly_name: document.getElementById('elderName').value.trim(),
+            elderly_gender: selectedGender,
+            elderly_age: document.getElementById('elderAge').value.trim(),
+            elderly_area: document.getElementById('elderArea').value.trim(),
+            elderly_hobbies: selectedHobbies.join(', ') || '無特別指定',
+            family_name: document.getElementById('familyName').value.trim(),
+            family_phone: document.getElementById('familyPhone').value.trim(),
+            relationship: selectedRelationship,
+            family_email: document.getElementById('familyEmail').value.trim(),
+            assessment_1966: selected1966,
+            assessment_level: selectedCareLevel,
+            case_manager_unit: document.getElementById('caseManager').value.trim() || '無',
+            visit_date: document.getElementById('visitDate').value,
+            visit_time: selectedTimeSlots.join('；')
+          };
+          await fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(formDataObj)
+          });
+        } catch (e) {
+          console.log("GAS Sync Notice:", e);
+        }
       }
+
+      // 2. 正式觸發原生的 FormSubmit POST 送出 (將會跳轉至 FormSubmit 成功頁面)
+      document.getElementById('bookingForm').submit();
     }
 
     // 複製預約摘要
